@@ -183,6 +183,11 @@ header {
     width: 80%;
     /* Shadow removed */
 }
+.antenna-offline-indicator.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
 ...
 .alert-code {
     font-size: 0.7rem;
