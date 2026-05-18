@@ -1,68 +1,81 @@
 /**
  * AETHER-7 | A.E.G.I.S. MASTER CONTROLLER
- * Frame-based Heartbeat Protocol
+ * Wersja uproszczona (Blocking Code) dla początkujących.
+ * Obsługuje czujnik BME280 (I2C).
  */
 
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME280.h>
+
+// PIN DEFINITIONS
 const int LED_RED = 2;
 const int LED_GREEN = 3;
 const int POT_PIN = A0;
-const int TEMP_PIN = A1;
 const int BUZZER_PIN = 8;
 
+Adafruit_BME280 bme; // I2C
+
 bool isUnlocked = false;
-unsigned long lastStreamTime = 0;
-const int streamInterval = 500; 
 
 void setup() {
   Serial.begin(9600);
+  
   pinMode(LED_RED, OUTPUT);
   pinMode(LED_GREEN, OUTPUT);
   pinMode(BUZZER_PIN, OUTPUT);
+  
+  // Start state
   digitalWrite(LED_RED, HIGH);
+  digitalWrite(LED_GREEN, LOW);
+
+  // Initialize BME280
+  if (!bme.begin(0x76)) {
+    Serial.println("SYSTEM_ERROR: BME280_NOT_FOUND");
+  }
 }
 
 void loop() {
-  // 1. INPUT HANDLING
+  // 1. SEND HEARTBEAT (Always send Login, send data if unlocked)
+  Serial.println("LOGIN:42");
+
+  if (isUnlocked) {
+    // Stream Potentiometer
+    int potVal = analogRead(POT_PIN);
+    Serial.print("OFFSET:");
+    Serial.println(potVal);
+
+    // Stream BME280 Temperature
+    float temp = bme.readTemperature();
+    Serial.print("TEMP:");
+    Serial.println(temp, 1);
+  }
+
+  // 2. CHECK FOR INCOMING COMMANDS
   if (Serial.available() > 0) {
     String input = Serial.readStringUntil('\n');
     input.trim();
+
     if (input == "1" || input == "STATUS:1") {
       isUnlocked = true;
       digitalWrite(LED_RED, LOW);
       digitalWrite(LED_GREEN, HIGH);
-    } else if (isUnlocked) {
-      handleAlarms(input.toInt());
+    } 
+    else if (isUnlocked) {
+      // Handle Alarms (Buzzer)
+      int code = input.toInt();
+      if (code == 101) {
+        tone(BUZZER_PIN, 440, 200);
+      } else if (code == 102) {
+        tone(BUZZER_PIN, 880, 200);
+      } else if (code == 103) {
+        tone(BUZZER_PIN, 1200, 500);
+      } else if (code == 0) {
+        noTone(BUZZER_PIN);
+      }
     }
   }
 
-  // 2. HEARTBEAT DATA STREAMING
-  unsigned long currentTime = millis();
-  if (currentTime - lastStreamTime >= streamInterval) {
-    lastStreamTime = currentTime;
-
-    // ALWAYS SEND LOGIN (Heartbeat for Block 1)
-    Serial.println("LOGIN:42");
-
-    if (isUnlocked) {
-      // ALWAYS SEND OFFSET (Heartbeat for Block 3/4)
-      int potVal = analogRead(POT_PIN);
-      Serial.print("OFFSET:");
-      Serial.println(potVal);
-
-      // ALWAYS SEND TEMP (Block 5)
-      float reading = analogRead(TEMP_PIN);
-      float celsius = (reading * 500.0) / 1024.0;
-      Serial.print("TEMP:");
-      Serial.println(celsius, 1);
-    }
-  }
-}
-
-void handleAlarms(int code) {
-  switch (code) {
-    case 0: noTone(BUZZER_PIN); break;
-    case 101: tone(BUZZER_PIN, 440, 200); break;
-    case 102: tone(BUZZER_PIN, 880, 200); break;
-    case 103: tone(BUZZER_PIN, 1200, 500); break;
-  }
+  // 3. WAIT (Introductory simple timing)
+  delay(500); 
 }

@@ -1,115 +1,64 @@
-# AETHER-7 | PRZEWODNIK DLA PROWADZĄCEGO (Teacher's Guide)
-Witaj w panelu instruktora systemu AETHER-7. Ten dokument zawiera szczegółową analizę kodu Arduino, wyjaśnienie koncepcji technicznych oraz wskazówki metodyczne do przeprowadzenia warsztatów.
+# AETHER-7 | PRZEWODNIK DLA PROWADZĄCEGO (Introductory Version)
+Witaj w panelu instruktora systemu AETHER-7. Dokument ten został zaktualizowany o obsługę czujnika **BME280** oraz uproszczony kod (Blocking Code), idealny dla osób stawiających pierwsze kroki w świecie Arduino.
 
 ---
 
-## 1. Architektura Systemu
-System opiera się na **komunikacji ramkowej** przez port szeregowy. Zamiast przesyłać surowe liczby, używamy formatu `ETYKIETA:WARTOŚĆ`. Pozwala to na:
-*   Jednoczesne przesyłanie danych z wielu czujników.
-*   Implementację mechanizmu **Watchdog** (aplikacja blokuje się, gdy przestanie otrzymywać ramkę `LOGIN`).
-*   Łatwe debugowanie przez uczniów w Monitorze Portu Szeregowego.
+## 1. Zmiany w Metodyce
+*   **Kod Blokujący:** Zrezygnowaliśmy z zaawansowanego `millis()` na rzecz prostego `delay()`. Pozwala to uczniom łatwiej prześledzić przepływ programu (najpierw wyślij, potem sprawdź, potem czekaj).
+*   **Eksploracja (Hide & Seek):** W instrukcjach dla uczniów **nie podajemy wartości docelowej 705**. Uczniowie muszą sami odkryć "częstotliwość", obserwując stabilizujący się kształt wektora na ekranie.
+*   **Czujnik BME280:** Wykorzystujemy interfejs I2C, co jest świetną okazją do wspomnienia o magistralach danych.
 
 ---
 
-## 2. Analiza kodu `aether7_master.ino` (Linia po Linii)
+## 2. Analiza kodu `aether7_master.ino`
 
-### Definicje i Zmienne
+### Biblioteki i Inicjalizacja
 ```cpp
-const int LED_RED = 2;
-const int LED_GREEN = 3;
-const int POT_PIN = A0;
-const int TEMP_PIN = A1;
-const int BUZZER_PIN = 8;
+#include <Wire.h>
+#include <Adafruit_BME280.h>
+Adafruit_BME280 bme;
 ```
-*   **Wyjaśnienie:** Definiujemy stałe dla pinów. Używamy `const`, aby oszczędzać pamięć i zapobiec przypadkowej zmianie numeru pinu w trakcie działania programu.
+*   **Wyjaśnienie:** BME280 wymaga bibliotek. Upewnij się, że uczniowie mają zainstalowaną bibliotekę "Adafruit BME280" w Library Managerze.
 
+### Pętla Główna (Loop)
 ```cpp
-bool isUnlocked = false;
-unsigned long lastStreamTime = 0;
-const int streamInterval = 500; 
-```
-*   **Koncepcja: Non-blocking Timing.** Zamiast funkcji `delay()`, która zatrzymuje cały procesor, używamy zmiennej `lastStreamTime` do odmierzania czasu za pomocą funkcji `millis()`. Dzięki temu procesor może jednocześnie obsługiwać dźwięk, czytać czujniki i odbierać dane z Seriala.
+void loop() {
+  Serial.println("LOGIN:42"); // Heartbeat
 
-### Funkcja `setup()`
-```cpp
-void setup() {
-  Serial.begin(9600);
-  pinMode(LED_RED, OUTPUT);
-  pinMode(LED_GREEN, OUTPUT);
-  pinMode(BUZZER_PIN, OUTPUT);
-  digitalWrite(LED_RED, HIGH); // Start w stanie zablokowanym
-}
-```
-*   **Wyjaśnienie:** Inicjalizujemy port szeregowy (baudrate 9600 musi być zgodny z tym w `app.js`). Ustawiamy tryby pracy pinów. Dioda czerwona świeci się od startu, sygnalizując brak dostępu.
-
-### Główna pętla `loop()` - Odbieranie danych
-```cpp
-if (Serial.available() > 0) {
-  String input = Serial.readStringUntil('\n');
-  input.trim();
-```
-*   **Koncepcja: Serial Buffer.** Sprawdzamy, czy w buforze wejściowym są dane. `readStringUntil('\n')` czyta całą linię aż do znaku nowej linii. `trim()` usuwa zbędne spacje i białe znaki.
-
-```cpp
-if (input == "1" || input == "STATUS:1") {
-  isUnlocked = true;
-  digitalWrite(LED_RED, LOW);
-  digitalWrite(LED_GREEN, HIGH);
-}
-```
-*   **Wyjaśnienie:** To jest reakcja na sygnał potwierdzający z przeglądarki. Gdy terminal webowy otrzyma poprawny klucz, wysyła "1", co fizycznie przełącza diody LED.
-
-### Główna pętla `loop()` - Wysyłanie danych (Heartbeat)
-```cpp
-if (currentTime - lastStreamTime >= streamInterval) {
-  Serial.println("LOGIN:42");
   if (isUnlocked) {
-    int potVal = analogRead(POT_PIN);
+    int potVal = analogRead(A0);
     Serial.print("OFFSET:");
     Serial.println(potVal);
-    // ... temperatura ...
+
+    float temp = bme.readTemperature();
+    Serial.print("TEMP:");
+    Serial.println(temp, 1);
   }
+
+  if (Serial.available() > 0) {
+    // ... obsługa komend ...
+  }
+
+  delay(500); // Proste taktowanie pętli
 }
 ```
-*   **Wyjaśnienie:** Co 500ms wysyłamy "puls" stacji. 
-    *   `LOGIN:42` to ramka autoryzacyjna. Jeśli zniknie, webapp zablokuje interfejs.
-    *   `OFFSET:` przesyła wartość z potencjometru do silnika graficznego wektorów.
-    *   `TEMP:` przesyła dane klimatyczne.
-
-### Przetwarzanie temperatury
-```cpp
-float reading = analogRead(TEMP_PIN);
-float celsius = (reading * 500.0) / 1024.0;
-```
-*   **Koncepcja: ADC to Physics.** `analogRead` zwraca wartość 0-1023 (10-bit). Dla czujnika LM35: 10mV to 1°C. Wzór przelicza napięcie (0-5V) na realną temperaturę.
-
-### Obsługa Alarmów `handleAlarms()`
-```cpp
-void handleAlarms(int code) {
-  switch (code) {
-    case 101: tone(BUZZER_PIN, 440, 200); break;
-    case 102: tone(BUZZER_PIN, 880, 200); break;
-    // ...
-  }
-}
-```
-*   **Koncepcja: PWM i Częstotliwość.** Funkcja `tone()` generuje sygnał prostokątny o zadanej częstotliwości (Hz). Case 101 to dźwięk A4 (440Hz). Uczeń może tu eksperymentować z własnymi melodiami ostrzegawczymi.
+*   **Koncepcja: Sequential Execution.** Program wykonuje się linia po linii. Co pół sekundy odświeżamy dane. Jest to wystarczająco szybkie dla interfejsu, a jednocześnie bardzo czytelne w kodzie.
 
 ---
 
 ## 📋 Scenariusz Zadań (Instrukcje dla Uczniów)
 
-1.  **Hacking (Serial Output):** Naucz Arduino "mówić" do terminala. Wyślij `LOGIN:42` i zobacz, jak ekran powitalny znika.
-2.  **Visual Confirmation (Digital Input):** Odczytaj, co terminal mówi do Ciebie. Gdy zobaczysz `STATUS:1`, zapal zieloną diodę.
-3.  **Tuning (Analog Input):** Podłącz potencjometr. Musisz "ustawić częstotliwość" na **705**, aby zsynchronizować wektor fazowy Phobos-Link.
-4.  **Audio Alert (Events):** Włącz Master Feed w terminalu. Gdy nadejdzie błąd (np. 101), spraw, by buzzer wydał dźwięk ostrzegawczy.
-5.  **Life Support (Closed-loop):** Podłącz czujnik temperatury. Wyślij `TEMP:XX.X`. W terminalu ustaw cel (np. 22°C) i zobacz, jak system decyduje o grzaniu lub chłodzeniu.
+1.  **Hacking (Serial):** Wyślij `LOGIN:42`, aby przełamać zabezpieczenia terminala.
+2.  **Status (LED):** Odczytaj komendę `STATUS:1` i zapal zieloną diodę na potwierdzenie.
+3.  **Tuning (Vector):** Podłącz potencjometr. Kręć powoli, aż zakłócony wektor na ekranie zamieni się w stabilny, zielony kształt. **Musisz sam znaleźć właściwą pozycję!**
+4.  **Alarms (Buzzer):** Zaprogramuj reakcję na kody błędów `101`, `102`, `103`, aby załoga słyszała zagrożenia.
+5.  **Environment (BME280):** Podłącz czujnik BME280 (piny SDA/SCL). Wyślij temperaturę w formacie `TEMP:XX.X`, aby aktywować systemy podtrzymywania życia.
 
 ---
 
 ## 💡 Wskazówki Dydaktyczne
-*   **Monitor Portu Szeregowego:** Jeśli coś nie działa, poproś uczniów o otwarcie Monitora w Arduino IDE. Powinni widzieć przewijające się napisy `LOGIN:42` i `OFFSET:xxx`. To najlepsza metoda nauki debugowania.
-*   **Problemy z połączeniem:** Web Serial API działa tylko w **Chrome** lub **Edge**. Upewnij się, że Monitor Portu w Arduino IDE jest **zamknięty** przed kliknięciem "INITIALIZE LINK" w przeglądarce.
+*   **Adres I2C:** Standardowo BME280 używa adresu `0x76` lub `0x77`. W kodzie używamy `bme.begin(0x76)`. Jeśli czujnik nie działa, warto sprawdzić drugi adres.
+*   **Znak nowej linii:** Przypomnij uczniom, że aplikacja czeka na `\n`, dlatego zawsze używamy `Serial.println()`, a nie `Serial.print()` na końcu ramki.
 
 ---
 *Autor: System A.E.G.I.S. (AETHER-7 Workshop)*

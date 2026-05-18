@@ -1,16 +1,24 @@
 // BLOCK 5: HEPHAESTUS LIFE SUPPORT
-// Logic: Stream TEMP:VAL to Serial
+// Logic: Stream TEMP:VAL using BME280
+
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME280.h>
+
+Adafruit_BME280 bme;
 
 void setup() {
   Serial.begin(9600);
+  if (!bme.begin(0x76)) {
+    Serial.println("Error: BME280 sensor not found!");
+  }
 }
 
 void loop() {
-  float reading = analogRead(A1);
-  float celsius = (reading * 500.0) / 1024.0;
+  float temp = bme.readTemperature();
   
   Serial.print("TEMP:");
-  Serial.println(celsius, 1);
+  Serial.println(temp, 1);
   
   delay(1000);
 }
