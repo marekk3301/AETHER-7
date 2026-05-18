@@ -16,6 +16,26 @@ const connectBtn = document.getElementById('connect-btn');
 const antennaOfflineMsg = document.getElementById('antenna-offline-msg');
 const serialStatus = document.getElementById('serial-status');
 const logs = document.getElementById('logs');
+const rawSerialContainer = document.getElementById('raw-serial');
+const tabSys = document.getElementById('tab-sys');
+const tabRaw = document.getElementById('tab-raw');
+
+// Tab Switching
+if (tabSys && tabRaw) {
+    tabSys.addEventListener('click', () => {
+        tabSys.classList.add('active');
+        tabRaw.classList.remove('active');
+        logs.classList.remove('hidden');
+        rawSerialContainer.classList.add('hidden');
+    });
+
+    tabRaw.addEventListener('click', () => {
+        tabRaw.classList.add('active');
+        tabSys.classList.remove('active');
+        rawSerialContainer.classList.remove('hidden');
+        logs.classList.add('hidden');
+    });
+}
 
 // Block Elements
 const b1Status = document.getElementById('b1-status');
@@ -180,7 +200,11 @@ async function readLoop() {
         try {
             const { value, done } = await reader.read();
             if (done) break;
-            if (value) processIncomingData(value.trim());
+            if (value) {
+                const trimmed = value.trim();
+                logRaw(trimmed); // Mirror to raw monitor
+                processIncomingData(trimmed);
+            }
         } catch (err) {
             handleDisconnect();
             break;
@@ -335,6 +359,20 @@ function updateBlock5(currentTemp) {
 function log(msg) {
     const time = new Date().toLocaleTimeString([], { hour12: false });
     logs.innerHTML = `[${time}] ${msg}<br>${logs.innerHTML}`;
+}
+
+function logRaw(data) {
+    if (!rawSerialContainer) return;
+    const time = new Date().toLocaleTimeString([], { hour12: false });
+    const line = `[${time}] > ${data}<br>`;
+    
+    rawSerialContainer.innerHTML = line + rawSerialContainer.innerHTML;
+    
+    // Limit to 100 lines to prevent performance issues
+    const lines = rawSerialContainer.innerHTML.split('<br>');
+    if (lines.length > 100) {
+        rawSerialContainer.innerHTML = lines.slice(0, 100).join('<br>');
+    }
 }
 
 class LineBreakTransformer {

@@ -178,17 +178,19 @@
     </main>
 
     <footer>
-        <div class="system-stats">
-            <div>CPU_LOAD: <span id="cpu-load">12.4%</span></div>
-            <div>MEM_USE: <span id="mem-use">1.43G/7.68G</span></div>
-            <div>TASKS: <span>84 RUNNING</span></div>
-            <div>KERNEL: <span>5.4.6-1-AETHER</span></div>
-            <div style="margin-top: auto; color: #ff3300;">!!! SYSTEM COMPROMISED !!!</div>
-        </div>
-        <div class="log-container" id="logs">
-            [00:00:00] A.E.G.I.S. INITIALIZED...<br>
-            [00:00:00] LOADING PHOBOS_OS KERNEL...<br>
-            [00:00:01] AWAITING SERIAL_LINK_INITIALIZATION...
+        <div class="log-section">
+            <div class="log-tabs">
+                <button id="tab-sys" class="log-tab active">[ SYSTEM_LOGS ]</button>
+                <button id="tab-raw" class="log-tab">[ RAW_SERIAL ]</button>
+            </div>
+            <div class="log-container" id="logs">
+                [00:00:00] A.E.G.I.S. INITIALIZED...<br>
+                [00:00:00] LOADING PHOBOS_OS KERNEL...<br>
+                [00:00:01] AWAITING SERIAL_LINK_INITIALIZATION...
+            </div>
+            <div class="log-container hidden" id="raw-serial">
+                [00:00:00] RAW_MONITOR_READY...
+            </div>
         </div>
     </footer>
 

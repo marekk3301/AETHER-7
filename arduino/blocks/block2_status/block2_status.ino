@@ -1,8 +1,12 @@
 // BLOCK 2: STATUS PANEL
 // Logic: Read serial, toggle LEDs
 
+#include <Wire.h>
+#include <Adafruit_BME280.h>
+Adafruit_BME280 bme;
+
 const int RED = 2;
-const int GREEN = 3;
+const int GREEN = LED_BUILTIN;
 
 void setup() {
   Serial.begin(9600);
