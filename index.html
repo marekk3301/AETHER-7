@@ -33,7 +33,7 @@
         
         <div class="telemetry-header">
             <div class="telemetry-item">STATION: <span>AETHER-7</span></div>
-            <div class="telemetry-item">SECTOR: <span>PHOBOS-B</span></div>
+            <div class="telemetry-item">REGION: <span>LOW EARTH ORBIT</span></div>
             <div class="telemetry-item">UPTIME: <span id="uptime">00:04:58</span></div>
             <div class="telemetry-item">OS: <span>AETHER_OS x86_64</span></div>
         </div>
@@ -88,30 +88,30 @@
             </div>
 
             <div class="panel-header">
-                <span>03_SPECTRUM_ANALYZER</span>
+                <span>03_VECTOR_SIGNAL_MONITOR</span>
                 <span>[PHOBOS-LINK]</span>
             </div>
             <div class="panel-content" style="justify-content: flex-start; padding: 10px;">
                 <div style="z-index: 10; text-align: left; width: 100%; border-bottom: 1px solid var(--text-dim); padding-bottom: 5px; display: flex; justify-content: space-between; align-items: flex-end;">
                     <div>
-                        <div style="font-size: 0.5rem; color: var(--text-dim);">FREQ_TUNER:</div>
+                        <div style="font-size: 0.5rem; color: var(--text-dim);">TUNER_OFFSET:</div>
                         <div style="font-size: 1.5rem; font-weight: bold;" id="b3-value">000.00</div>
                     </div>
                     <div style="text-align: right;">
-                        <div style="font-size: 0.5rem; color: var(--text-dim);">SNR_RATIO:</div>
-                        <div style="font-size: 1rem; color: var(--warning);" id="signal-percent">0.0 dB</div>
+                        <div style="font-size: 0.5rem; color: var(--text-dim);">SIGNAL_STABILITY:</div>
+                        <div style="font-size: 1rem; color: var(--warning);" id="signal-percent">0%</div>
                     </div>
                 </div>
 
-                <div class="waterfall-container">
-                    <canvas id="waterfall-canvas"></canvas>
-                    <div id="frequency-marker" class="frequency-marker"></div>
+                <div class="vector-scope-container">
+                    <canvas id="vector-canvas"></canvas>
+                    <div class="scope-grid"></div>
                 </div>
                 
                 <div style="margin-top: auto; width: 100%; border-top: 1px solid var(--text-dim); padding-top: 5px;">
                     <div style="display: flex; justify-content: space-between; font-size: 0.6rem;">
-                        <span>RECEIVER_STATUS:</span>
-                        <span id="b3-status">SCANNING...</span>
+                        <span>PHASE_SYNC:</span>
+                        <span id="b3-status">UNSTABLE</span>
                     </div>
                     <div style="height: 2px; background: #332000; margin-top: 5px;">
                         <div id="b3-fill" style="height: 100%; background: var(--text-primary); width: 0%;"></div>

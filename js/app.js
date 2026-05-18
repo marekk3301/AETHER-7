@@ -1,6 +1,6 @@
 /**
  * AETHER-7 | A.E.G.I.S. SYSTEM TERMINAL
- * Core Logic & Scientific Visualization (Waterfall)
+ * Core Logic & Heartbeat Protocol
  */
 
 let port;
@@ -41,76 +41,75 @@ let auraActive = false;
 let auraInterval;
 let targetTemp = 22.0;
 
-// Waterfall State
-const canvas = document.getElementById('waterfall-canvas');
-const ctx = canvas ? canvas.getContext('2d') : null;
-const frequencyMarker = document.getElementById('frequency-marker');
-let waterfallData = [];
-let tunerValue = 0;
+// Heartbeat / Watchdog Logic
+let lastLoginTime = 0;
+let lastOffsetTime = 0;
+const HEARTBEAT_TIMEOUT = 3000; // 3 seconds tolerance
 
-function initWaterfall() {
+// Vector Scope State
+const canvas = document.getElementById('vector-canvas');
+const ctx = canvas ? canvas.getContext('2d') : null;
+let tunerValue = 0;
+let angle = 0;
+
+function initVectorScope() {
     if (!canvas) return;
-    // Set internal resolution
     canvas.width = 400;
-    canvas.height = 300;
-    
-    // Fill with empty lines
-    for (let i = 0; i < canvas.height; i++) {
-        waterfallData.push(new Uint8Array(canvas.width).fill(0));
-    }
-    requestAnimationFrame(renderWaterfall);
+    canvas.height = 400;
+    requestAnimationFrame(renderVectorScope);
 }
 
-function renderWaterfall() {
+function renderVectorScope() {
     if (!ctx || !canvas) return;
 
-    // Shift data (Scroll Down)
-    const newRow = new Uint8Array(canvas.width);
-    
-    // Simulated Signal Peak at hidden freq (e.g. 705)
-    // Map 0-1023 to 0-canvas.width
-    const targetX = (705 / 1023) * canvas.width;
-    const tunerX = (tunerValue / 1023) * canvas.width;
-    
-    // Proximity to target
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const radius = 120;
+
     const dist = Math.abs(tunerValue - 705);
-    const strength = Math.exp(-Math.pow(dist, 2) / 2000); // Sharp peak
-
-    // Generate row noise + signal
-    for (let x = 0; x < canvas.width; x++) {
-        let noise = Math.random() * 40;
-        // Background carrier (always there but weak)
-        let carrier = Math.exp(-Math.pow(x - targetX, 2) / 20) * 100;
-        newRow[x] = Math.min(255, noise + carrier);
-    }
+    const stability = Math.exp(-Math.pow(dist, 2) / 1000); 
+    const noiseLevel = (1 - stability) * 50;
     
-    waterfallData.unshift(newRow);
-    waterfallData.pop();
+    ctx.beginPath();
+    ctx.strokeStyle = `rgba(255, 176, 0, ${0.5 + stability * 0.5})`;
+    ctx.lineWidth = 2;
+    if (stability > 0.95) ctx.strokeStyle = '#ccff00';
 
-    // Draw to Canvas
-    const imgData = ctx.createImageData(canvas.width, canvas.height);
-    for (let y = 0; y < canvas.height; y++) {
-        for (let x = 0; x < canvas.width; x++) {
-            const val = waterfallData[y][x];
-            const idx = (y * canvas.width + x) * 4;
-            
-            // Amber palette mapping
-            imgData.data[idx] = val;         // R
-            imgData.data[idx+1] = val * 0.7; // G
-            imgData.data[idx+2] = val * 0.1; // B
-            imgData.data[idx+3] = 255;       // A
-        }
+    for (let i = 0; i < 100; i++) {
+        const t = angle + (i * 0.1);
+        let x = Math.cos(t) * radius;
+        let y = Math.sin(t * 2) * radius; 
+        x += (Math.random() - 0.5) * noiseLevel;
+        y += (Math.random() - 0.5) * noiseLevel;
+        if (i === 0) ctx.moveTo(centerX + x, centerY + y);
+        else ctx.lineTo(centerX + x, centerY + y);
     }
-    ctx.putImageData(imgData, 0, 0);
-    
-    // Frequency Marker
-    if(frequencyMarker) {
-        frequencyMarker.style.left = `${(tunerValue / 1023) * 100}%`;
-    }
-
-    requestAnimationFrame(renderWaterfall);
+    ctx.stroke();
+    angle += 0.05;
+    requestAnimationFrame(renderVectorScope);
 }
-initWaterfall();
+initVectorScope();
+
+// Watchdog Checker
+setInterval(() => {
+    if (!port) return;
+    const now = Date.now();
+
+    // 1. Check Login Frame
+    if (isUnlocked && (now - lastLoginTime > HEARTBEAT_TIMEOUT)) {
+        log("PROTOCOL_ALERT: LOGIN_FRAME_LOST. RESETTING ACCESS...");
+        lockStation();
+    }
+
+    // 2. Check Offset Frame
+    if (block3Unlocked && (now - lastOffsetTime > HEARTBEAT_TIMEOUT)) {
+        log("PROTOCOL_ALERT: SYNC_FRAME_LOST. DISABLING DIAGNOSTICS...");
+        dealignAntenna();
+    }
+}, 1000);
 
 // BOOT SEQUENCE
 window.addEventListener('load', () => {
@@ -128,25 +127,21 @@ window.addEventListener('load', () => {
  */
 
 if (navigator.serial) {
-    navigator.serial.addEventListener('disconnect', (event) => {
+    navigator.serial.addEventListener('disconnect', () => {
         log("SYSTEM_ALERT: HARDWARE DISCONNECTED.");
         handleDisconnect();
     });
 }
 
 connectBtn.addEventListener('click', async () => {
-    if (port) {
-        await handleDisconnect();
-    } else {
-        await connect();
-    }
+    if (port) await handleDisconnect();
+    else await connect();
 });
 
 async function connect() {
     try {
         port = await navigator.serial.requestPort();
         await port.open({ baudRate: 9600 });
-
         serialStatus.textContent = "LINK: ONLINE";
         serialStatus.className = "status-connected";
         if (antennaOfflineMsg) antennaOfflineMsg.classList.add('hidden');
@@ -160,36 +155,24 @@ async function connect() {
 
         const decoder = new TextDecoderStream();
         inputDone = port.readable.pipeTo(decoder.writable);
-        inputStream = decoder.readable
-            .pipeThrough(new TransformStream(new LineBreakTransformer()));
-        
+        inputStream = decoder.readable.pipeThrough(new TransformStream(new LineBreakTransformer()));
         reader = inputStream.getReader();
         readLoop();
-
     } catch (err) {
         log("ERROR: CONNECTION FAILED. " + err.message);
-        if (err.message.includes("Failed to open serial port")) {
-            log("HINT: CHECK IF ARDUINO SERIAL MONITOR OR ANOTHER APP IS USING THE PORT.");
-        }
-        console.error(err);
         port = null;
     }
 }
 
 async function handleDisconnect() {
-    if (reader) {
-        try { await reader.cancel(); } catch(e) {}
-        reader = null;
-    }
-    if (port) {
-        try { await port.close(); } catch(e) {}
-        port = null;
-    }
+    if (reader) { try { await reader.cancel(); } catch(e) {} reader = null; }
+    if (port) { try { await port.close(); } catch(e) {} port = null; }
     serialStatus.textContent = "SERIAL_LINK_REQUIRED";
     serialStatus.className = "status-disconnected";
     if (antennaOfflineMsg) antennaOfflineMsg.classList.remove('hidden');
     connectBtn.textContent = "INITIALIZE LINK";
     log("SERIAL CONNECTION TERMINATED.");
+    lockStation();
 }
 
 async function readLoop() {
@@ -197,11 +180,8 @@ async function readLoop() {
         try {
             const { value, done } = await reader.read();
             if (done) break;
-            if (value) {
-                processIncomingData(value.trim());
-            }
+            if (value) processIncomingData(value.trim());
         } catch (err) {
-            log("READ_ERROR: " + err.message);
             handleDisconnect();
             break;
         }
@@ -209,30 +189,21 @@ async function readLoop() {
 }
 
 function processIncomingData(data) {
-    if (!data.includes(":")) {
-        log(`PROTOCOL_ERROR: INVALID_FORMAT [${data}] - EXPECTING LABEL:VALUE`);
-        return;
-    }
+    if (!data.includes(":")) return;
     const [label, val] = data.split(":");
+    
     switch(label) {
         case "LOGIN":
+            lastLoginTime = Date.now();
             if (!isUnlocked && val === "42") unlockStation();
-            else if (!isUnlocked) log(`SECURITY_ALERT: INVALID_OVERRIDE_KEY [${val}]`);
             break;
         case "OFFSET":
-            if (isUnlocked) {
-                const numericVal = parseInt(val);
-                if (!isNaN(numericVal)) updateBlock3(numericVal);
-                else log(`DATA_ERROR: INVALID_OFFSET_VALUE [${val}]`);
-            }
+            lastOffsetTime = Date.now();
+            if (isUnlocked) updateBlock3(parseInt(val));
             break;
         case "TEMP":
-            const tempVal = parseFloat(val);
-            if (!isNaN(tempVal)) updateBlock5(tempVal);
-            else log(`DATA_ERROR: INVALID_TEMP_VALUE [${val}]`);
+            updateBlock5(parseFloat(val));
             break;
-        default:
-            log(`PROTOCOL_ERROR: UNKNOWN_MESSAGE_TYPE [${label}]`);
     }
 }
 
@@ -248,68 +219,70 @@ function unlockStation() {
     b1Status.style.borderColor = "var(--success)";
     document.getElementById('block-2').classList.remove('disabled');
     b2Label.textContent = "ONLINE";
-    ledRed.textContent = "[ RED_OFF ]";
-    ledRed.style.opacity = "0.2";
-    ledGreen.textContent = "[ GRN_ON ]";
-    ledGreen.style.opacity = "1";
+    ledRed.textContent = "[ RED_OFF ]"; ledRed.style.opacity = "0.2";
+    ledGreen.textContent = "[ GRN_ON ]"; ledGreen.style.opacity = "1";
     writeToSerial("1");
     writeToSerial("STATUS:1");
     document.getElementById('block-3').classList.remove('disabled');
 }
 
-// FAKE TELEMETRY
-const startTime = Date.now();
-setInterval(() => {
-    const elapsed = Math.floor((Date.now() - startTime) / 1000);
-    const h = Math.floor(elapsed / 3600).toString().padStart(2, '0');
-    const m = Math.floor((elapsed % 3600) / 60).toString().padStart(2, '0');
-    const s = (elapsed % 60).toString().padStart(2, '0');
-    if(document.getElementById('uptime')) document.getElementById('uptime').textContent = `${h}:${m}:${s}`;
-    const load = (Math.random() * 5 + 10).toFixed(1);
-    if(document.getElementById('cpu-load')) document.getElementById('cpu-load').textContent = `${load}%`;
-    const mem = (1.43 + Math.random() * 0.05).toFixed(2);
-    if(document.getElementById('mem-use')) document.getElementById('mem-use').textContent = `${mem}G/7.68G`;
-}, 1000);
+function lockStation() {
+    isUnlocked = false;
+    block3Unlocked = false;
+    b1Status.textContent = "LOCKED";
+    b1Status.style.color = "var(--danger)";
+    b1Status.style.borderColor = "var(--danger)";
+    document.getElementById('block-2').classList.add('disabled');
+    document.getElementById('block-3').classList.add('disabled');
+    document.getElementById('block-4').classList.add('disabled');
+    document.getElementById('block-5').classList.add('disabled');
+    b2Label.textContent = "OFFLINE";
+    ledRed.textContent = "[ RED_ON ]"; ledRed.style.opacity = "1";
+    ledGreen.textContent = "[ GRN_OFF ]"; ledGreen.style.opacity = "0.2";
+    stopAuraCycle();
+}
 
-// BLOCK 3 (Waterfall Scientific)
 function updateBlock3(val) {
     tunerValue = val;
-    // Format as Frequency (e.g. 1420.00 MHz base + offset)
-    const freq = (1420.42 + (val / 1023) * 10).toFixed(2);
-    b3Value.textContent = freq;
-    
-    // Proximity to Target (705)
+    b3Value.textContent = val.toString().padStart(3, '0');
     const dist = Math.abs(val - 705);
-    const strength = Math.exp(-Math.pow(dist, 2) / 2500); 
-    const snr = (strength * 45).toFixed(1); // 0-45 dB SNR
-    
-    signalPercentLabel.textContent = `${snr} dB`;
-    const percent = Math.floor(strength * 100);
+    const stability = Math.exp(-Math.pow(dist, 2) / 1500); 
+    const percent = Math.floor(stability * 100);
+    signalPercentLabel.textContent = `${percent}%`;
     b3Fill.style.width = `${percent}%`;
 
     if (percent >= 95) {
-        b3StatusMsg.textContent = "SIGNAL_LOCKED";
+        b3StatusMsg.textContent = "PHASE_LOCKED";
         b3StatusMsg.style.color = "var(--success)";
         if (!block3Unlocked) {
-            log("PHOBOS-LINK SYNCHRONIZED. DOWNLOADING DIAGNOSTICS...");
+            log("VECTOR PHASE SYNCHRONIZED.");
             block3Unlocked = true;
             document.getElementById('block-4').classList.remove('disabled');
         }
     } else {
-        b3StatusMsg.textContent = "SCANNING_BAND...";
+        b3StatusMsg.textContent = "UNSTABLE_SIGNAL";
         b3StatusMsg.style.color = "var(--warning)";
+        if (block3Unlocked && percent < 90) dealignAntenna();
     }
+}
+
+function dealignAntenna() {
+    block3Unlocked = false;
+    document.getElementById('block-4').classList.add('disabled');
+    document.getElementById('block-5').classList.add('disabled');
+    stopAuraCycle();
+    auraToggle.checked = false;
+    resetAuraUI();
 }
 
 auraToggle.addEventListener('change', (e) => {
     auraActive = e.target.checked;
     auraToggleLabel.textContent = auraActive ? "ACTIVE" : "INACTIVE";
     if (auraActive) {
-        log("AURA DIAGNOSTIC FEED ENABLED. MONITORING ERRORS...");
+        log("AURA DIAGNOSTIC FEED ENABLED.");
         document.getElementById('block-5').classList.remove('disabled');
         startAuraCycle();
     } else {
-        log("AURA DIAGNOSTIC FEED SUSPENDED.");
         stopAuraCycle();
         writeToSerial("0");
         resetAuraUI();
@@ -334,9 +307,9 @@ function updateAuraUI(code) {
     const codeDisplay = auraAlert.querySelector('.alert-code');
     codeDisplay.textContent = `CODE: ${code}`;
     switch(code) {
-        case 101: title.textContent = "HYDROPONICS LEAK"; log("ALERT: HYDROPONICS LEAK DETECTED."); break;
-        case 102: title.textContent = "HULL DECOMPRESSION"; log("CRITICAL: HULL DECOMPRESSION IN PROGRESS."); break;
-        case 103: title.textContent = "CORE OVERLOAD"; log("EMERGENCY: CORE OVERLOAD IMMINENT."); break;
+        case 101: title.textContent = "HYDROPONICS LEAK"; break;
+        case 102: title.textContent = "HULL DECOMPRESSION"; break;
+        case 103: title.textContent = "CORE OVERLOAD"; break;
     }
 }
 
@@ -354,17 +327,9 @@ b5Slider.addEventListener('input', (e) => {
 function updateBlock5(currentTemp) {
     b5Temp.textContent = currentTemp.toFixed(1) + "°C";
     const diff = currentTemp - targetTemp;
-    const deadzone = 1.0;
-    if (diff > deadzone) {
-        b3StatusMsg.textContent = "STATUS: COOLING (VENTILATORS ACTIVE)";
-        b3StatusMsg.style.color = "var(--text-primary)";
-    } else if (diff < -deadzone) {
-        b3StatusMsg.textContent = "STATUS: HEATING (THERMAL COILS ACTIVE)";
-        b3StatusMsg.style.color = "var(--danger)";
-    } else {
-        b3StatusMsg.textContent = "STATUS: STABILIZED (IDLE)";
-        b3StatusMsg.style.color = "var(--success)";
-    }
+    if (diff > 1.0) b5StatusMsg.textContent = "STATUS: COOLING";
+    else if (diff < -1.0) b5StatusMsg.textContent = "STATUS: HEATING";
+    else b5StatusMsg.textContent = "STATUS: STABILIZED";
 }
 
 function log(msg) {
