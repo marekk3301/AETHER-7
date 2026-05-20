@@ -2,11 +2,11 @@
 // Logic: Read serial, toggle LEDs
 
 #include <Wire.h>
-#include <Adafruit_BME280.h>
-Adafruit_BME280 bme;
+// #include <Adafruit_BME280.h>
+// Adafruit_BME280 bme;
 
 const int RED = 2;
-const int GREEN = LED_BUILTIN;
+const int GREEN = 3;
 
 void setup() {
   Serial.begin(9600);

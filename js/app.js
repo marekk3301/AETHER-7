@@ -251,6 +251,15 @@ async function writeToSerial(message) {
     }
 }
 
+// Persistent Hardware Sync Heartbeat
+setInterval(() => {
+    if (port && writer && isUnlocked) {
+        // Repeatedly send status to ensure LEDs stay synchronized
+        // even if Arduino resets or misses the first message.
+        writeToSerial("STATUS:1");
+    }
+}, 3000); // Every 3 seconds
+
 /**
  * DOM LOGIC
  */
