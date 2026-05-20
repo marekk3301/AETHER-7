@@ -1,16 +1,16 @@
 // BLOCK 02: STATUS PANEL
 
 // PIN DEFINITIONS
-const int RED = 2;
-const int GREEN = 3;
+const int LED_RED = 2;
+const int LED_GREEN = 3;
 
 void setup() {
   Serial.begin(9600);
 
-  pinMode(RED, OUTPUT);
-  pinMode(GREEN, OUTPUT);
+  pinMode(LED_RED, OUTPUT);
+  pinMode(LED_GREEN, OUTPUT);
   
-  digitalWrite(RED, HIGH);
+  digitalWrite(LED_RED, HIGH);
   digitalWrite(LED_GREEN, LOW);
 }
 

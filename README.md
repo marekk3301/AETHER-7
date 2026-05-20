@@ -1,127 +1,182 @@
-# SCENARIUSZ WARSZTATÓW: PROTOKÓŁ AETHER-7
-**System A.E.G.I.S. (Advanced Ecological & Geostationary Intelligence System)**
+# AETHER-7 | PRZEWODNIK DLA PROWADZĄCEGO (Scenariusz Modułowy)
 
-Ten dokument to kompletny plan warsztatów dla prowadzącego. Zawiera instrukcje dla uczniów oraz "ściągę" z pełnym wyjaśnieniem kodu i koncepcji elektronicznych.
-
----
-
-## WSTĘP FABULARNY (Dla uczniów)
-*„Jest rok 2026. Stacja badawcza AETHER-7 dryfuje na niskiej orbicie okołoziemskiej. Po uderzeniu mikrometeoroidu, główny komputer A.E.G.I.S. przeszedł w tryb awaryjny i zablokował dostęp do systemów podtrzymywania życia. Jesteście zespołem inżynierów ratunkowych. Komputer wyświetla panel sterowania, jednak by się do niego dostać i odzyskać kontrolę nad stacją musicie stworzyć system komunikacji z systemem używając mikrokontrolera Arduino. Powodzenia.”*
+Ten dokument to szczegółowy scenariusz warsztatów, który pokazuje, jak budować system AETHER-7 krok po kroku. Każde zadanie to nowa warstwa kodu i elektroniki dodawana do poprzedniej.
 
 ---
 
-## ZADANIE 1: Breach Protocol (Przełamanie portu)
+## ZADANIE 1: Breach Protocol (Komunikacja Szeregowa)
+**Cel:** Nawiązanie pierwszego kontaktu z komputerem stacji.
 
-### 📝 Instrukcja dla ucznia:
-Stacja jest zablokowana. Musisz wysłać sygnał autoryzacyjny bezpośrednio do procesora. Zaprogramuj Arduino tak, aby co pół sekundy wysyłało kod autoryzacji `LOGIN:XX` do komputera. (Podpowiedź: Komputer szuka konkretnej liczby).
+### 🔌 Elektronika:
+*   Samo Arduino podłączone przez USB do laptopa.
 
-### 🔑 Rozwiązanie i wyjaśnienie (Dla prowadzącego):
+### ✍️ Co dopisać:
+Nauczyciel tłumaczy funkcję `Serial.begin()` oraz pętlę `loop()`.
 ```cpp
 void setup() {
-  Serial.begin(9600); // Otwieramy kanał komunikacji
+  Serial.begin(9600); // Inicjalizacja portu szeregowego
 }
 
 void loop() {
-  Serial.println("LOGIN:42"); // Wysyłamy klucz z końcem linii
-  delay(500); // Czekamy 500ms
+  Serial.println("LOGIN:42"); // Wysyłanie klucza autoryzacyjnego
+  delay(1000); // Czekamy 1 sekundę
 }
 ```
-*   **Port Szeregowy (Serial):** To rura, przez którą płyną dane bit po bicie między Arduino a komputerem.
-*   **`Serial.begin(9600)`:** Ustawia prędkość "rozmowy" na 9600 bodów (bitów na sekundę).
-*   **`Serial.println()`:** Wysyła tekst i dodaje znak nowej linii (`\n`).
+
+### 🧠 Koncepcje:
+1.  **Serial (Port Szeregowy):** "Rura" do przesyłania danych. `9600` to prędkość (bitów na sekundę).
+2.  **println:** Wysyła tekst i dodaje ukryty znak "nowej linii" (`\n`). Bez tego terminal webowy nie wie, gdzie kończy się wiadomość.
+3.  **delay:** Arduino jest bardzo szybkie. Delay zapobiega "zalaniu" komputera milionami wiadomości na sekundę.
 
 ---
 
-## ZADANIE 2: Hardware Mirror (Status LED)
+## ZADANIE 2: Status Panel (GPIO i Reakcja)
+**Cel:** Sterowanie fizycznymi światłami na podstawie sygnału z komputera.
 
-### 📝 Instrukcja dla ucznia:
-Terminal odpowiedział! Jeśli klucz był poprawny, aplikacja wysyła teraz sygnał potwierdzenia `1`. Podłącz diody LED (Czerwoną pod Pin 2, Zieloną pod Pin 3). Spraw, by zielona zapaliła się dopiero, gdy otrzymasz kod `1`.
+### 🔌 Elektronika:
+*   Podłączamy **Czerwoną LED** do pinu 2 i **Zieloną LED** do pinu 3 (przez rezystory 220Ω).
 
-### 🔑 Rozwiązanie i wyjaśnienie (Dla prowadzącego):
+### ✍️ Co dopisać:
+1.  Zdefiniuj numery pinów na górze programu.
+2.  Ustaw piny jako `OUTPUT` w `setup()`.
+3.  Dodaj warunek `if (Serial.available())` w pętli `loop()`.
+
 ```cpp
+const int LED_RED = 2;
+const int LED_GREEN = 3;
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(LED_RED, OUTPUT);
+  pinMode(LED_GREEN, OUTPUT);
+  digitalWrite(LED_RED, HIGH); // Czerwona świeci od startu
+}
+
 void loop() {
-  Serial.println("LOGIN:42"); 
+  Serial.println("LOGIN:42");
+  
   if (Serial.available() > 0) {
-    String msg = Serial.readStringUntil('\n');
-    msg.trim();
-    if (msg == "1") {
-      digitalWrite(2, LOW);    // Czerwona OFF
-      digitalWrite(3, HIGH);   // Zielona ON
+    String input = Serial.readStringUntil('\n');
+    input.trim();
+    if (input.toInt() == 1) { // Jeśli terminal wysłał "1"
+      digitalWrite(LED_RED, LOW);
+      digitalWrite(LED_GREEN, HIGH);
     }
   }
   delay(500);
 }
 ```
-*   **Piny GPIO:** Cyfrowe wyjścia procesora. `HIGH` to 5V (włączone), `LOW` to 0V (wyłączone).
-*   **Ujednolicony Protokół:** Używamy kodu `1` zarówno do odblokowania sprzętu, jak i jako bazę dla przyszłych kodów diagnostycznych.
+
+### 🧠 Koncepcje:
+1.  **GPIO (General Purpose Input/Output):** Piny, które mogą być włącznikiem (Output) lub sensorem (Input).
+2.  **DigitalWrite:** Ustawia stan pinu. `HIGH` = 5V (włączone), `LOW` = 0V (wyłączone).
+3.  **Serial.available():** Sprawdza, czy w "skrzynce pocztowej" Arduino czekają jakieś listy (dane) z komputera.
+4.  **toInt():** Zamienia tekst "1" na liczbę 1, aby można było ją łatwo porównać.
 
 ---
 
-## ZADANIE 3: Vector Phase Sync (Potencjometr)
+## ZADANIE 3: Antenna Alignment (Przetwornik ADC)
+**Cel:** Przesyłanie wartości analogowej do terminala.
 
-### 📝 Instrukcja dla ucznia:
-Łącze radiowe jest rozstrojone. Na ekranie widzisz chaotyczny kształt wektora. Podłącz potencjometr pod pin analogowy. Wysyłaj jego wartość w formacie `OFFSET:WARTOŚĆ`. Musisz sam znaleźć "częstotliwość", przy której kształt stanie się stabilny i zielony.
+### 🔌 Elektronika:
+*   Podłączamy **Potencjometr** (lewa nóżka do GND, prawa do 5V, środkowa do pinu **A0**).
 
-### 🔑 Rozwiązanie i wyjaśnienie (Dla prowadzącego):
+### ✍️ Co dopisać:
+1.  Zdefiniuj pin `POT_PIN = A0`.
+2.  W pętli `loop()` odczytaj wartość potencjometru i wyślij ją z etykietą `OFFSET:`.
+
 ```cpp
+const int POT_PIN = A0;
+
 void loop() {
-  int potVal = analogRead(A0); 
+  // ... (kod z zadania 2) ...
+
+  int potVal = analogRead(POT_PIN);
   Serial.print("OFFSET:"); 
-  Serial.println(potVal);      
-  delay(100); 
+  Serial.println(potVal); // Przesyłamy np. OFFSET:512
+
+  delay(500);
 }
 ```
-*   **ADC (Analog-to-Digital Converter):** Zamienia napięcie (0-5V) na liczbę (0-1023).
-*   **Hide & Seek:** Uczeń musi manualnie dopasować wartość, obserwując stabilność grafiki na ekranie.
+
+### 🧠 Koncepcje:
+1.  **Potencjometr:** Rezystor nastawny. Działa jak kran – przekręcenie zmienia napięcie na środkowej nóżce.
+2.  **ADC (Analog-to-Digital Converter):** Arduino nie rozumie prądu, rozumie tylko liczby. ADC zamienia napięcie (0-5V) na liczbę od **0 do 1023**.
+3.  **analogRead:** Funkcja czytająca tę liczbę z pinu analogowego.
 
 ---
 
-## ZADANIE 4: AURA Alarms (Buzzer)
+## ZADANIE 4: AURA Alarms (Dźwięki PWM)
+**Cel:** Reakcja dźwiękowa na ostrzeżenia wysyłane przez terminal.
 
-### 📝 Instrukcja dla ucznia:
-Antena działa! System AURA wykrywa drobne nieprawidłowości. Gdy włączysz "Master Feed", aplikacja zacznie wysyłać kody ostrzeżeń (`101`, `102`, `103`). Podłącz buzzer pod pin 8 i zaprogramuj dźwięki ostrzegawcze.
+### 🔌 Elektronika:
+*   Podłączamy **Buzzer Piezo** do pinu **11** i GND.
 
-### 🔑 Rozwiązanie i wyjaśnienie (Dla prowadzącego):
+### ✍️ Co dopisać:
+1.  Zdefiniuj `BUZZER_PIN = 11`.
+2.  Rozbuduj instrukcję `if` o obsługę kodów `101`, `102`, `103`.
+
 ```cpp
+const int BUZZER_PIN = 11;
+
 void loop() {
+  // ...
   if (Serial.available() > 0) {
-    int code = Serial.parseInt(); 
-    if (code == 101) tone(8, 440, 200);
-    else if (code == 102) tone(8, 880, 200);
-    else if (code == 103) tone(8, 1200, 500);
-    else if (code == 0) noTone(8);
+    // ... (czytanie kodu) ...
+    if (code == 1) { /* odblokuj LED */ }
+    else if (code == 101) { tone(BUZZER_PIN, 440, 200); }
+    else if (code == 102) { tone(BUZZER_PIN, 880, 200); }
+    else if (code == 103) { tone(BUZZER_PIN, 1200, 500); }
+    else if (code == 0)   { noTone(BUZZER_PIN); }
   }
 }
 ```
-*   **Narracja:** Alarmy to teraz "Ostrzeżenia" (np. Opóźnienie komunikacji, drobny wyciek płynu), a nie katastrofy.
-*   **`tone()`:** Generuje sygnał dźwiękowy o określonej częstotliwości (Hz).
+
+### 🧠 Koncepcje:
+1.  **Buzzer:** Głośnik, który drga, gdy prąd szybko się włącza i wyłącza.
+2.  **tone(pin, freq, time):** Tworzy dźwięk o konkretnej częstotliwości (Hz). Większa liczba = wyższy pisk.
+3.  **noTone:** Cisza.
 
 ---
 
-## ZADANIE 5: Hephaestus Life Support (BME280)
+## ZADANIE 5: Hephaestus (Magistrala I2C)
+**Cel:** Odczyt profesjonalnego czujnika środowiskowego.
 
-### 📝 Instrukcja dla ucznia:
-Ostatni krok. Monitorujemy parametry stacji za pomocą czujnika BME280 (SDA do A4, SCL do A5). Użyj biblioteki, aby odczytać temperaturę i wyślij ją jako `TEMP:XX.X`. W terminalu ustaw temperaturę docelową.
+### 🔌 Elektronika:
+*   Podłączamy **BME280** (VCC -> 3.3V/5V, GND -> GND, **SDA -> A4**, **SCL -> A5**).
 
-### 🔑 Rozwiązanie i wyjaśnienie (Dla prowadzącego):
+### ✍️ Co dopisać:
+1.  Zaimportuj biblioteki na samej górze.
+2.  Zainicjalizuj czujnik w `setup()`.
+3.  Wyślij temperaturę z etykietą `TEMP:`.
+
 ```cpp
+#include <Wire.h>
 #include <Adafruit_BME280.h>
 Adafruit_BME280 bme;
-void setup() { bme.begin(0x76); }
+
+void setup() {
+  // ...
+  bme.begin(0x76); // Start czujnika (częsty adres to 0x76)
+}
+
 void loop() {
-  float t = bme.readTemperature();
+  // ...
+  float temp = bme.readTemperature();
   Serial.print("TEMP:");
-  Serial.println(t, 1);
-  delay(1000);
+  Serial.println(temp, 1); // Wyślij z 1 miejscem po przecinku
 }
 ```
-*   **I2C:** Magistrala danych wykorzystująca tylko dwa przewody do komunikacji z czujnikiem.
-*   **Histereza:** Zapobiega zbyt częstemu przełączaniu się systemów przy minimalnych zmianach temperatury.
+
+### 🧠 Koncepcje:
+1.  **I2C (Inter-Integrated Circuit):** Magistrala "inteligentna". Pozwala łączyć wiele czujników tylko 2 przewodami (SDA - dane, SCL - zegar). Każdy ma swój unikalny adres (np. 0x76).
+2.  **Biblioteki:** Gotowe zestawy funkcji napisane przez innych. Dzięki nim nie musisz wiedzieć, jak dokładnie działa "wnętrze" czujnika, by go użyć.
 
 ---
 
-## 🛠 Wskazówki techniczne dla prowadzącego:
-1.  **Monitor Portu:** Pamiętaj, aby zamknąć Monitor Portu w Arduino IDE przed kliknięciem **INITIALIZE LINK**.
-2.  **Heartbeat:** Aplikacja co 3 sekundy wysyła kod `1`, aby upewnić się, że diody LED na Arduino są w poprawnym stanie, nawet jeśli sprzęt został zresetowany.
+## 🛠 FAQ dla Prowadzącego:
+*   **Nie łączy się?** Sprawdź, czy Monitor Portu w Arduino IDE jest zamknięty. Tylko jedna aplikacja naraz może czytać Serial.
+*   **Wartości skaczą?** Upewnij się, że potencjometr ma dobry kontakt z płytką stykową.
+*   **Błąd BME280?** Sprawdź kable SDA/SCL. Jeśli są dobrze, zmień adres w kodzie z `0x76` na `0x77`.
 
-*Autor: System A.E.G.I.S. | AETHER-7 Workshop*
+*Scenariusz AETHER-7 przygotowany dla inżynierów ratunkowych.*

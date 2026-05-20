@@ -8,7 +8,7 @@
 const int LED_RED = 2;
 const int LED_GREEN = 3;
 const int POT_PIN = A0;
-const int BUZZER_PIN = 8;
+const int BUZZER_PIN = 11;
 
 Adafruit_BME280 bme; // I2C (SDA -> A4, SCL -> A5)
 
