@@ -1,9 +1,23 @@
 /**
  * AETHER-7 | A.E.G.I.S. SYSTEM TERMINAL
- * Core Logic & Robust Serial Management
+ * Core Logic & Protocol Refinement
  */
 
-// Global Serial State
+/**
+ * LineBreakTransformer
+ * Splitting the serial stream by newlines.
+ */
+class LineBreakTransformer {
+    constructor() { this.container = ''; }
+    transform(chunk, controller) {
+        this.container += chunk;
+        const lines = this.container.split('\n');
+        this.container = lines.pop();
+        lines.forEach(line => controller.enqueue(line));
+    }
+    flush(controller) { controller.enqueue(this.container); }
+}
+
 let port = null;
 let reader = null;
 let writer = null;
@@ -178,7 +192,6 @@ async function handleDisconnect() {
 
     log("TERMINATING SERIAL LINK...");
 
-    // 1. Cancel the reader
     if (reader) {
         try {
             await reader.cancel();
@@ -188,19 +201,16 @@ async function handleDisconnect() {
         reader = null;
     }
 
-    // 2. Release the writer
     if (writer) {
         try { await writer.releaseLock(); } catch (e) {}
         writer = null;
     }
 
-    // 3. Close the port
     if (port) {
         try { await port.close(); } catch (e) {}
         port = null;
     }
 
-    // UI Reset
     serialStatus.textContent = "SERIAL_LINK_REQUIRED";
     serialStatus.className = "status-disconnected";
     if (antennaOfflineMsg) antennaOfflineMsg.classList.remove('hidden');
@@ -223,11 +233,13 @@ async function readLoop() {
             break;
         }
     }
+    if (port) handleDisconnect();
 }
 
 function processIncomingData(data) {
     if (!data.includes(":")) return;
     const [label, val] = data.split(":");
+    
     switch(label) {
         case "LOGIN":
             if (!isUnlocked && val === "42") unlockStation();
@@ -245,7 +257,8 @@ async function writeToSerial(message) {
     if (!writer) return;
     try {
         const encoder = new TextEncoder();
-        await writer.write(encoder.encode(message + "\n"));
+        const data = encoder.encode(message + "\n");
+        await writer.write(data);
     } catch(err) {
         console.error("Write Error:", err);
     }
@@ -254,11 +267,10 @@ async function writeToSerial(message) {
 // Persistent Hardware Sync Heartbeat
 setInterval(() => {
     if (port && writer && isUnlocked) {
-        // Repeatedly send status to ensure LEDs stay synchronized
-        // even if Arduino resets or misses the first message.
-        writeToSerial("STATUS:1");
+        // Standardized to "1" instead of "STATUS:1"
+        writeToSerial("1");
     }
-}, 3000); // Every 3 seconds
+}, 3000); 
 
 /**
  * DOM LOGIC
@@ -272,7 +284,7 @@ function unlockStation() {
     b1Status.textContent = "UNLOCKED";
     b1Status.style.color = "var(--success)";
     b1Status.style.borderColor = "var(--success)";
-    
+
     const b1GlitchText = document.querySelector('#block-1 .glitch-text');
     if (b1GlitchText) b1GlitchText.textContent = "ACCESS GRANTED";
     
@@ -282,7 +294,6 @@ function unlockStation() {
     ledGreen.textContent = "[ GRN_ON ]"; ledGreen.style.opacity = "1";
     
     writeToSerial("1");
-    writeToSerial("STATUS:1");
     document.getElementById('block-3').classList.remove('disabled');
 }
 
@@ -294,6 +305,7 @@ function updateBlock3(val) {
     const percent = Math.floor(stability * 100);
     signalPercentLabel.textContent = `${percent}%`;
     b3Fill.style.width = `${percent}%`;
+
     if (percent >= 95) {
         b3StatusMsg.textContent = "PHASE_LOCKED";
         b3StatusMsg.style.color = "var(--success)";
@@ -340,9 +352,9 @@ function updateAuraUI(code) {
     const codeDisplay = auraAlert.querySelector('.alert-code');
     if (codeDisplay) codeDisplay.textContent = `CODE: ${code}`;
     switch(code) {
-        case 101: title.textContent = "HYDROPONICS LEAK"; break;
-        case 102: title.textContent = "HULL DECOMPRESSION"; break;
-        case 103: title.textContent = "CORE OVERLOAD"; break;
+        case 101: title.textContent = "MINOR FLUID LEAK"; break;
+        case 102: title.textContent = "COMMUNICATIONS LAG"; break;
+        case 103: title.textContent = "THERMAL FLUCTUATION"; break;
     }
 }
 
@@ -372,26 +384,13 @@ function log(msg) {
 }
 
 function logRaw(data) {
-    if (!rawSerialContainer) return;
+    const target = document.getElementById('raw-content') || document.getElementById('raw-serial');
+    if (!target) return;
     const time = new Date().toLocaleTimeString([], { hour12: false });
     const line = `[${time}] > ${data}<br>`;
-    rawSerialContainer.innerHTML = line + rawSerialContainer.innerHTML;
-    const lines = rawSerialContainer.innerHTML.split('<br>');
+    target.innerHTML = line + target.innerHTML;
+    const lines = target.innerHTML.split('<br>');
     if (lines.length > 100) {
-        rawSerialContainer.innerHTML = lines.slice(0, 100).join('<br>');
+        target.innerHTML = lines.slice(0, 100).join('<br>');
     }
-}
-
-/**
- * UTILS
- */
-class LineBreakTransformer {
-    constructor() { this.container = ''; }
-    transform(chunk, controller) {
-        this.container += chunk;
-        const lines = this.container.split('\n');
-        this.container = lines.pop();
-        lines.forEach(line => controller.enqueue(line));
-    }
-    flush(controller) { controller.enqueue(this.container); }
 }

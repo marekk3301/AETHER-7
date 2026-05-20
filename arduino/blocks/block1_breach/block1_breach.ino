@@ -6,6 +6,7 @@ void setup() {
 }
 
 void loop() {
+  // ACCESS TO THE COMPUTER
   Serial.println("LOGIN:42"); // Send labeled key
   
   if (Serial.available() > 0) {

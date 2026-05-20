@@ -1,7 +1,6 @@
 /**
  * AETHER-7 | A.E.G.I.S. MASTER CONTROLLER
- * Wersja uproszczona (Blocking Code) dla początkujących.
- * Obsługuje czujnik BME280 (I2C).
+ * Protokół ujednolicony: Kod "1" dla statusu i alarmów.
  */
 
 #include <Wire.h>
@@ -25,7 +24,7 @@ void setup() {
   pinMode(LED_GREEN, OUTPUT);
   pinMode(BUZZER_PIN, OUTPUT);
   
-  // Start state
+  // Start state: Locked
   digitalWrite(LED_RED, HIGH);
   digitalWrite(LED_GREEN, LOW);
 
@@ -36,16 +35,14 @@ void setup() {
 }
 
 void loop() {
-  // 1. SEND HEARTBEAT (Always send Login, send data if unlocked)
+  // 1. SEND HEARTBEAT
   Serial.println("LOGIN:42");
 
   if (isUnlocked) {
-    // Stream Potentiometer
     int potVal = analogRead(POT_PIN);
     Serial.print("OFFSET:");
     Serial.println(potVal);
 
-    // Stream BME280 Temperature
     float temp = bme.readTemperature();
     Serial.print("TEMP:");
     Serial.println(temp, 1);
@@ -56,7 +53,8 @@ void loop() {
     String input = Serial.readStringUntil('\n');
     input.trim();
 
-    if (input == "1" || input == "STATUS:1") {
+    // Ujednolicony kod "1" odblokowuje sprzęt
+    if (input == "1") {
       isUnlocked = true;
       digitalWrite(LED_RED, LOW);
       digitalWrite(LED_GREEN, HIGH);
@@ -76,6 +74,5 @@ void loop() {
     }
   }
 
-  // 3. WAIT (Introductory simple timing)
   delay(500); 
 }

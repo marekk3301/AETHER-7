@@ -1,9 +1,5 @@
 // BLOCK 2: STATUS PANEL
-// Logic: Read serial, toggle LEDs
-
-#include <Wire.h>
-// #include <Adafruit_BME280.h>
-// Adafruit_BME280 bme;
+// Logic: Read serial, toggle LEDs. Use unified code "1".
 
 const int RED = 2;
 const int GREEN = 3;
@@ -18,7 +14,8 @@ void setup() {
 void loop() {
   if (Serial.available() > 0) {
     String msg = Serial.readStringUntil('\n');
-    if (msg == "STATUS:1") {
+    msg.trim();
+    if (msg == "1") {
       digitalWrite(RED, LOW);
       digitalWrite(GREEN, HIGH);
     }
