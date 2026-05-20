@@ -1,33 +1,47 @@
-// BLOCK 3: ANTENNA ALIGNMENT
-// Logic: Stream OFFSET:VAL to Serial
+/**
+ * AETHER-7 | BLOK 03: ANTENNA ALIGNMENT (Cumulative)
+ * Zawiera logikę z Bloku 1 i 2 oraz odczyt potencjometru.
+ */
 
-const int RED = 2;
-const int GREEN = 3;
+// PIN DEFINITIONS
+const int LED_RED = 2;
+const int LED_GREEN = 3;
+const int POT_PIN = A0;
+
+bool isUnlocked = false;
 
 void setup() {
   Serial.begin(9600);
-  pinMode(RED, OUTPUT);
-  pinMode(GREEN, OUTPUT);
-  digitalWrite(RED, HIGH);
+  
+  pinMode(LED_RED, OUTPUT);
+  pinMode(LED_GREEN, OUTPUT);
+  
+  digitalWrite(LED_RED, HIGH);
+  digitalWrite(LED_GREEN, LOW);
 }
 
 void loop() {
-  // ACCESS TO THE COMPUTER
-  Serial.println("LOGIN:42"); // Send labeled key
+  // 1. ZADANIE 1: LOGIN HEARTBEAT
+  Serial.println("LOGIN:42");
 
-  // STATUS LIGHT
+  if (isUnlocked) {
+    // 2. ZADANIE 3: OFFSET STREAMING
+    int potVal = analogRead(POT_PIN);
+    Serial.print("OFFSET:");
+    Serial.println(potVal);
+  }
+
+  // 3. ZADANIE 2: OBSŁUGA KOMENDY ODBLOKOWANIA
   if (Serial.available() > 0) {
-    String msg = Serial.readStringUntil('\n');
-    if (msg == "STATUS:1") {
-      digitalWrite(RED, LOW);
-      digitalWrite(GREEN, HIGH);
+    String input = Serial.readStringUntil('\n');
+    input.trim();
+
+    if (input == "1") {
+      isUnlocked = true;
+      digitalWrite(LED_RED, LOW);
+      digitalWrite(LED_GREEN, HIGH);
     }
   }
-  
-  // SIGNAL SYNC
-  int val = analogRead(A0);
-  Serial.print("OFFSET:");
-  Serial.println(val);
 
-  delay(100); 
+  delay(500);
 }
