@@ -67,6 +67,12 @@ void loop() {
 }
 ```
 
+Można też pokazać PWM i zapalać czerwoną diodę na połowę jasności:
+
+```
+analogWrite(LED_RED, 128);
+```
+
 ### 🧠 Koncepcje:
 1.  **GPIO (General Purpose Input/Output):** Piny, które mogą być włącznikiem (Output) lub sensorem (Input).
 2.  **DigitalWrite:** Ustawia stan pinu. `HIGH` = 5V (włączone), `LOW` = 0V (wyłączone).
@@ -89,7 +95,7 @@ void loop() {
 const int POT_PIN = A0;
 
 void loop() {
-  // ... (kod z zadania 2) ...
+  // ...
 
   int potVal = analogRead(POT_PIN);
   Serial.print("OFFSET:"); 
@@ -171,6 +177,44 @@ void loop() {
 ### 🧠 Koncepcje:
 1.  **I2C (Inter-Integrated Circuit):** Magistrala "inteligentna". Pozwala łączyć wiele czujników tylko 2 przewodami (SDA - dane, SCL - zegar). Każdy ma swój unikalny adres (np. 0x76).
 2.  **Biblioteki:** Gotowe zestawy funkcji napisane przez innych. Dzięki nim nie musisz wiedzieć, jak dokładnie działa "wnętrze" czujnika, by go użyć.
+
+---
+
+## Co dalej
+Jak zostanie czas to można dodać przycisk do wysyłania danych do komputera. System ma cały czas nasłuchiwać, ale wysyłać dane z loginu, potencjometra i termometru tylko po naciśnięciu przycisku. 
+
+```cpp
+int BUTTON_PIN = 7;
+
+void setup() {
+  // ...
+  pinmode(BUTTON_PIN, INPUT_PULLUP);
+}
+
+void loop() {
+  // ...
+  if (digitalRead(BUTTON_PIN) == 1) {
+    Serial.println("LOGIN:42");
+  
+    Serial.print("OFFSET:"); 
+    Serial.println(potVal); // Przesyłamy np. OFFSET:512
+  
+    Serial.print("TEMP:");
+    Serial.println(temp, 1); // Wyślij z 1 miejscem po przecinku
+  }
+}
+```
+
+## Potrzebny Sprzęt:
+1.  Arduino Uno
+2.  Breadboard
+3.  2 diody LED (zielona i czerwona)
+4.  2 rezystory 220ohm
+5.  Potencjometr
+6.  Brzęczyk
+7.  Sensor temperatury BME280
+8.  Przycisk na wszelki
+9.  Przynajmniej 15 kabelków
 
 ---
 
