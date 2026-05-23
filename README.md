@@ -2,6 +2,8 @@
 
 Ten dokument to szczegółowy scenariusz warsztatów, który pokazuje, jak budować system AETHER-7 krok po kroku. Każde zadanie to nowa warstwa kodu i elektroniki dodawana do poprzedniej.
 
+https://marekk3301.github.io/AETHER-7/
+
 ---
 
 ## ZADANIE 1: Breach Protocol (Komunikacja Szeregowa)
